@@ -101,12 +101,13 @@ foreach my $row (@$payload) {
   %extra = ();
   #add_if_exists ('description', 'desc', '', '');	# or desc => cmt ?
   
-  $gpx->add_waypoint ({
+  push @{$gpx->{waypoints}},
+  {
     lat => $lat,
     lon => $lon,
     time => $time,
     %extra
-  });
+  };
 }
 
 # write output GPX 1.1 file
