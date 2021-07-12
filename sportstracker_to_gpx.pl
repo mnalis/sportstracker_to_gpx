@@ -16,13 +16,13 @@ use autodie;
 #use diagnostics;
 
 #$| = 1;
-my $DEBUG = 0;
+my $DEBUG = $ENV{DEBUG} || 0;
 
 use JSON;
 use Geo::Gpx;
 binmode STDOUT, ':utf8';	# our terminal is UTF-8 capable (we hope)
 
-my $VERSION = '0.5';
+my $VERSION = '0.6';
 
 my $URL = $ARGV[0];
 
@@ -83,22 +83,27 @@ my $payload = $$json_href{'payload'}{'locations'};
 
 
 # add all waypoints one by one
-foreach my $row (@$payload) {
+foreach (@$payload) {
+  $row = $_;	# because of implicit scoping of foreach!
   $count++;
 
   #use Data::Dumper; print Dumper ($row); die;
 
   my $lat = $row->{'la'};
   my $lon = $row->{'ln'};
-  my $time = int ($row->{'d'} / 1000);
   if (!$lat or !$lon)  {
     $DEBUG && print "skipping missing lat/lon for point $count";
     next;
   };	
   
   print "parsing $lat,$lon\t$count\n" if $DEBUG > 1;
-  
+
   %extra = ();
+
+  my $time = int ($row->{'d'} / 1000);
+  $extra{'time'} = $time if $time;
+
+  add_if_exists ('h', 'ele', '', '');
   #add_if_exists ('description', 'desc', '', '');	# or desc => cmt ?
   
   push @{$gpx->{waypoints}},
