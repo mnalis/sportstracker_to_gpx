@@ -22,10 +22,11 @@ use JSON;
 use Geo::Gpx;
 binmode STDOUT, ':utf8';	# our terminal is UTF-8 capable (we hope)
 
-my $VERSION = '0.4';
+my $VERSION = '0.5';
 
 my $URL = $ARGV[0];
 
+my $username = '';
 my $JSON_URL;
 my $fname_GPX;
 my %extra;
@@ -46,15 +47,16 @@ sub add_if_exists($$$$)
 
 if (!defined $URL) {
     print "sportstracker_to_gpx.pl v$VERSION\n";
-    print "Usage: $0 <https://www.sports-tracker.com/workout/xxxxx/123456789abcdef012345678>\n\n";
+    print "Usage: $0 <https://www.sports-tracker.com/workout/xxxxx/123456789abcdef012345678> [output.gpx]\n\n";
     print "This program creates standard routing .GPX from sport-tracker.com URL\n";
     exit 1;
 }
 
-if ($URL =~ m!/([a-z0-9]{24})$!) {
-    $key = $1;
-    $fname_GPX = ${key} . '.gpx';
-    $JSON_URL = 'https://api.sports-tracker.com/apiserver/v1/images/workout/' . $key;
+if ($URL =~ m!/([^/q]*?)/([a-z0-9]{24})$!i) {
+    $username = $1;
+    $key = $2;
+    $fname_GPX = $ARGV[1] || "${key}.gpx";
+    $JSON_URL = 'https://api.sports-tracker.com/apiserver/v1/workouts/' . $key . '/data?samples=100000';
 } else {
     print "URL must be in format 'https://www.sports-tracker.com/workout/xxxxx/123456789abcdef012345678', and not: $URL";
     exit 2;
@@ -77,20 +79,18 @@ $DEBUG && print "Parsing from $URL to GPX $fname_GPX\n\n";
 my $count = 1;
 
 
-my $payload = $$json_href{'payload'};
-my $username = undef;
-my $workoutkey = undef;	# FIXME must be same as $key?
+my $payload = $$json_href{'payload'}{'locations'};
 
 
 # add all waypoints one by one
 foreach my $row (@$payload) {
   $count++;
 
-  $username = $row->{'username'} if !defined $username;
-  $workoutkey = $row->{'workoutKey'} if !defined $workoutkey;
+  #use Data::Dumper; print Dumper ($row); die;
 
-  my $lat = $row->{'location'}{'y'};
-  my $lon = $row->{'location'}{'x'};
+  my $lat = $row->{'la'};
+  my $lon = $row->{'ln'};
+  my $time = int ($row->{'d'} / 1000);
   if (!$lat or !$lon)  {
     $DEBUG && print "skipping missing lat/lon for point $count";
     next;
@@ -99,12 +99,12 @@ foreach my $row (@$payload) {
   print "parsing $lat,$lon\t$count\n" if $DEBUG > 1;
   
   %extra = ();
-  add_if_exists ('description', 'desc', '', '');	# or desc => cmt ?
-  add_if_exists ('timestamp', 'time', '', '');
+  #add_if_exists ('description', 'desc', '', '');	# or desc => cmt ?
   
   $gpx->add_waypoint ({
     lat => $lat,
     lon => $lon,
+    time => $time,
     %extra
   });
 }
@@ -112,13 +112,13 @@ foreach my $row (@$payload) {
 # write output GPX 1.1 file
 $gpx->author({ 
         link => {
-          text => "$username $workoutkey",
+          text => "$username $key",
           href => $URL,
         },
         name => $username
       });
 
-$gpx->desc ($workoutkey);
+$gpx->desc ($key);
 my $xml = $gpx->xml( '1.1' );
 
 
