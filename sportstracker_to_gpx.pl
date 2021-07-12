@@ -22,12 +22,14 @@ use JSON;
 use Geo::Gpx;
 binmode STDOUT, ':utf8';	# our terminal is UTF-8 capable (we hope)
 
-my $VERSION = '0.2';
+my $VERSION = '0.3';
 
 my $fname_JSON = $ARGV[0];
 my $fname_GPX = $ARGV[1];
 my %extra;
 my $row;
+my $URL='';
+my $key;
 
 # adds tag to GPX if it exists in source
 sub add_if_exists($$$$) 
@@ -42,8 +44,8 @@ sub add_if_exists($$$$)
 }  
 
 if (!defined ($fname_JSON) or !defined($fname_GPX)) {
-    print "loadstone_to_gpx.pl v$VERSION\n";
-    print "Usage: $0 <loadstone_input.TXT> <output.GPX>\n\n";
+    print "sportstracker_to_gpx.pl v$VERSION\n";
+    print "Usage: $0 <sportstracker_input.JSON> <output.GPX>\n\n";
     print "input or/and output file can be '-', signifying stdin/stdout\n";
     print "This program creates standard routing .GPX from sport-tracker.com JSON file\n";
     exit 1;
@@ -66,23 +68,26 @@ $DEBUG && print "Parsing from sports-tracker.com $fname_JSON to GPX $fname_GPX\n
 my $count = 1;
 
 
-my $payload=$$json_href{payload};
+my $payload = $$json_href{'payload'};
+my $username = undef;
+my $workoutkey = undef;	# FIXME must be same as $key?
 
 
 # add all waypoints one by one
 foreach my $row (@$payload) {
-  my $name = $$row{name};
-  if (!$name) { $name = "Point $count" }
   $count++;
 
-  my $lat=$row->{location}{y};
-  my $lon=$row->{location}{x};
+  $username = $row->{'username'} if !defined $username;
+  $workoutkey = $row->{'workoutKey'} if !defined $workoutkey;
+
+  my $lat = $row->{'location'}{'y'};
+  my $lon = $row->{'location'}{'x'};
   if (!$lat or !$lon)  {
-    $DEBUG && print "skipping missing lat/lon for $name";
+    $DEBUG && print "skipping missing lat/lon for point $count";
     next;
   };	
   
-  print "parsing $lat,$lon\t$name\n" if $DEBUG > 1;
+  print "parsing $lat,$lon\t$count\n" if $DEBUG > 1;
   
   %extra = ();
   add_if_exists ('description', 'desc', '', '');	# or desc => cmt ?
@@ -91,13 +96,23 @@ foreach my $row (@$payload) {
   $gpx->add_waypoint ({
     lat => $lat,
     lon => $lon,
-    name => $name,
     %extra
   });
 }
 
 # write output GPX 1.1 file
+$gpx->author({ 
+        link => {
+          text => "$username $workoutkey",
+          href => $URL,
+        },
+        name => $username
+      });
+
+$gpx->desc ($workoutkey);
 my $xml = $gpx->xml( '1.1' );
+
+
 die "refusing to overwrite $fname_GPX" if -e $fname_GPX;
 open my $gpx_fd, "> $fname_GPX";	# need 2-arg open so '-' will work as alias for stdout
 print $gpx_fd $xml or die "can't append to $fname_GPX: $!";
