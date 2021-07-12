@@ -22,13 +22,14 @@ use JSON;
 use Geo::Gpx;
 binmode STDOUT, ':utf8';	# our terminal is UTF-8 capable (we hope)
 
-my $VERSION = '0.3';
+my $VERSION = '0.4';
 
-my $fname_JSON = $ARGV[0];
-my $fname_GPX = $ARGV[1];
+my $URL = $ARGV[0];
+
+my $JSON_URL;
+my $fname_GPX;
 my %extra;
 my $row;
-my $URL='';
 my $key;
 
 # adds tag to GPX if it exists in source
@@ -43,17 +44,25 @@ sub add_if_exists($$$$)
   }
 }  
 
-if (!defined ($fname_JSON) or !defined($fname_GPX)) {
+if (!defined $URL) {
     print "sportstracker_to_gpx.pl v$VERSION\n";
-    print "Usage: $0 <sportstracker_input.JSON> <output.GPX>\n\n";
-    print "input or/and output file can be '-', signifying stdin/stdout\n";
-    print "This program creates standard routing .GPX from sport-tracker.com JSON file\n";
+    print "Usage: $0 <https://www.sports-tracker.com/workout/xxxxx/123456789abcdef012345678>\n\n";
+    print "This program creates standard routing .GPX from sport-tracker.com URL\n";
     exit 1;
 }
 
+if ($URL =~ m!/([a-z0-9]{24})$!) {
+    $key = $1;
+    $fname_GPX = ${key} . '.gpx';
+    $JSON_URL = 'https://api.sports-tracker.com/apiserver/v1/images/workout/' . $key;
+} else {
+    print "URL must be in format 'https://www.sports-tracker.com/workout/xxxxx/123456789abcdef012345678', and not: $URL";
+    exit 2;
+}
+
 # parse given JSON input file
-open my $json_fd, "< $fname_JSON";	# need 2-arg open so '-' will work as alias for stdin
-binmode $json_fd, ':utf8';		# input file is UTF-8 capable (we hope)
+open my $json_fd, '-|', "curl -sL $JSON_URL";
+binmode $json_fd, ':utf8';			# input file is UTF-8 capable (we hope)
 
 undef $/;
 my $json_txt = <$json_fd>; 
@@ -62,9 +71,9 @@ my $json_href = decode_json $json_txt;
 # create empty .gpx
 my $gpx = Geo::Gpx->new();
 $gpx->link({ href => 'https://github.com/mnalis/sportstracker_to_gpx', text => "Converted by sportstracker_to_gpx.pl v$VERSION" });
-$gpx->name($fname_JSON) if $fname_JSON ne '-';
+$gpx->name($key);
 
-$DEBUG && print "Parsing from sports-tracker.com $fname_JSON to GPX $fname_GPX\n\n";
+$DEBUG && print "Parsing from $URL to GPX $fname_GPX\n\n";
 my $count = 1;
 
 
