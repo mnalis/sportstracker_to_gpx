@@ -82,7 +82,8 @@ my $count = 1;
 my $payload = $$json_href{'payload'}{'locations'};
 
 
-# add all waypoints one by one
+# add all trackpoints one by one
+my @trackpoints=();
 foreach (@$payload) {
   $row = $_;	# because of implicit scoping of foreach!
   $count++;
@@ -106,7 +107,7 @@ foreach (@$payload) {
   add_if_exists ('h', 'ele', '', '');
   #add_if_exists ('description', 'desc', '', '');	# or desc => cmt ?
   
-  push @{$gpx->{waypoints}},
+  push @trackpoints,
   {
     lat => $lat,
     lon => $lon,
@@ -114,6 +115,18 @@ foreach (@$payload) {
     %extra
   };
 }
+
+my $tracks = [
+  {
+    'name' => 'Track 1',
+    'segments' => [
+      {
+        'points' => \@trackpoints
+      }
+    ]
+  }
+];
+
 
 # write output GPX 1.1 file
 $gpx->author({ 
@@ -125,6 +138,7 @@ $gpx->author({
       });
 
 $gpx->desc ($key);
+$gpx->tracks ($tracks);
 my $xml = $gpx->xml( '1.1' );
 
 
